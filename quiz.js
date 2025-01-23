@@ -1,110 +1,115 @@
-// quiz.js
-const readline = require('readline-sync');
+const readline = require('readline');
 
+// Step 1: Define the quiz questions
 const questions = [
   {
     question: "What component is considered the brain of the computer?",
     options: ["A. Hard Drive", "B. CPU", "C. RAM", "D. GPU"],
-    answer: "B"
+    answer: "B",
   },
   {
     question: "Which of the following is a type of volatile memory?",
     options: ["A. SSD", "B. HDD", "C. RAM", "D. ROM"],
-    answer: "C"
+    answer: "C",
   },
   {
     question: "What does BIOS stand for?",
     options: ["A. Basic Integrated Operating System", "B. Basic Input Output System", "C. Binary Input Output System", "D. Basic Input Operational System"],
-    answer: "B"
-  },
-  {
-    question: "Which network topology connects all devices to a central hub?",
-    options: ["A. Star", "B. Ring", "C. Bus", "D. Mesh"],
-    answer: "A"
-  },
-  {
-    question: "What does DHCP stand for?",
-    options: ["A. Dynamic Host Control Protocol", "B. Dynamic Host Configuration Protocol", "C. Dynamic Hardware Configuration Protocol", "D. Dynamic Host Communication Protocol"],
-    answer: "B"
-  },
-  {
-    question: "Which layer of the OSI model is responsible for data encryption?",
-    options: ["A. Application Layer", "B. Transport Layer", "C. Network Layer", "D. Presentation Layer"],
-    answer: "D"
-  },
-  {
-    question: "What type of malware encrypts files and demands payment for decryption?",
-    options: ["A. Virus", "B. Worm", "C. Ransomware", "D. Trojan"],
-    answer: "C"
-  },
-  {
-    question: "What does the acronym 'VPN' stand for?",
-    options: ["A. Virtual Private Network", "B. Virtual Public Network", "C. Verified Private Network", "D. Verified Public Network"],
-    answer: "A"
-  },
-  {
-    question: "Which of the following is a common type of firewall?",
-    options: ["A. Packet-filtering Firewall", "B. Network Address Translator", "C. VPN Gateway", "D. Proxy Server"],
-    answer: "A"
-  },
-  {
-    question: "What is the primary function of an operating system?",
-    options: ["A. To manage hardware resources", "B. To browse the internet", "C. To create documents", "D. To develop software"],
-    answer: "A"
-  },
-  {
-    question: "What does 'phishing' refer to in cybersecurity?",
-    options: ["A. Network monitoring", "B. Fraudulent attempts to obtain sensitive information", "C. Data encryption", "D. Antivirus scanning"],
-    answer: "B"
-  },
-  {
-    question: "Which device connects multiple computers in a network and uses MAC addresses to forward data?",
-    options: ["A. Router", "B. Switch", "C. Hub", "D. Modem"],
-    answer: "B"
+    answer: "B",
   },
 ];
 
-const startQuiz = () => {
-  let score = 0;
-  let questionIndex = 0;
+// Step 2: Quiz state management variables
+let score = 0;
+let timedOutQuestions = 0;
+let wrongAnswers = 0;
+let currentQuestionIndex = 0;
 
-  const askQuestion = () => {
-    if (questionIndex < questions.length) {
-      const { question, options, answer } = questions[questionIndex];
-      console.log(`\nQuestion ${questionIndex + 1}: ${question}`);
-      options.forEach(option => console.log(option));
-      
-      let timeLeft = 10;
-      const timer = setInterval(() => {
-        console.log(`Time remaining: ${timeLeft} seconds`);
-        timeLeft--;
+// Create readline interface
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
-        if (timeLeft < 0) {
-          clearInterval(timer);
-          console.log("\nTime's up! Moving to the next question.");
-          questionIndex++;
-          askQuestion(); // Move to next question
-        }
-      }, 1000);
+// Step 3: Core function to handle each question with a countdown timer
+const askQuestion = async (questionObj, index) => {
+  console.log(`\nQuestion ${index + 1}: ${questionObj.question}`);
+  questionObj.options.forEach(option => console.log(option)); // Display question options
 
-      const userAnswer = readline.keyIn('', { limit: '$<A-a>, $<B-b>, $<C-c>, $<D-d>' });
-      
-      clearInterval(timer); // Clear the timer if user answers
-      if (userAnswer.toUpperCase() === answer) {
-        score++;
-        console.log("Correct!");
-      } else {
-        console.log("Wrong answer!");
-      }
+  // Timer logic to count down from 10 seconds
+  let timeLeft = 10;
+  const timer = setInterval(() => {
+    process.stdout.clearLine();
+    process.stdout.cursorTo(0);
+    process.stdout.write(`Time remaining: ${timeLeft} seconds`);
+    timeLeft--;
+  }, 1000);
 
-      questionIndex++;
-      askQuestion(); // Move to next question
-    } else {
-      console.log(`\nQuiz finished! Your final score is: ${score}/${questions.length}`);
-    }
-  };
+  // Handle user input with a promise that resolves when input is received or time runs out
+  const userAnswer = await getUserAnswerOrTimeout(timer);
 
-  askQuestion();
+  // Validate and process the user's answer
+  if (userAnswer === 'timeout') {
+    timedOutQuestions++;
+    console.log("\nTime's up! Moving to the next question.");
+  } else if (userAnswer.toUpperCase() === questionObj.answer) {
+    console.log("Correct!");
+    score++;
+  } else {
+    console.log(`Wrong answer! The correct answer was ${questionObj.answer}.`);
+    wrongAnswers++;
+  }
 };
 
+// Step 4: Function to handle user input or timeout (resolves after input or timeout)
+const getUserAnswerOrTimeout = (timer) => {
+  return new Promise((resolve) => {
+    let answered = false;
+
+    // Set up listener for user input
+    rl.question('\nYour answer: ', (userInput) => {
+      if (!answered) {
+        clearInterval(timer);
+        answered = true;
+        resolve(userInput);
+      }
+    });
+
+    // Resolve as 'timeout' if user didn't answer in time
+    setTimeout(() => {
+      if (!answered) {
+        clearInterval(timer);
+        answered = true;
+        resolve('timeout');
+      }
+    }, 10000);
+  });
+};
+
+// Step 5: Function to manage the entire quiz flow
+const startQuiz = async () => {
+  console.log("Welcome to the Professional Timed Quiz!\n");
+
+  // Loop through each question asynchronously
+  while (currentQuestionIndex < questions.length) {
+    await askQuestion(questions[currentQuestionIndex], currentQuestionIndex);
+    currentQuestionIndex++;
+  }
+
+  // Step 6: Display the final results
+  displayQuizSummary();
+  rl.close(); // Close readline interface
+};
+
+// Step 6: Function to display quiz summary and analysis
+const displayQuizSummary = () => {
+  console.log(`\n--- Quiz Summary ---`);
+  console.log(`Total Questions: ${questions.length}`);
+  console.log(`Correct Answers: ${score}`);
+  console.log(`Wrong Answers: ${wrongAnswers}`);
+  console.log(`Timed-Out Questions: ${timedOutQuestions}`);
+  console.log(`Final Score: ${score}/${questions.length}`);
+};
+
+// Start the quiz
 startQuiz();
